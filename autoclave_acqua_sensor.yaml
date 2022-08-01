@@ -1,0 +1,124 @@
+#==================
+#=== Substitutions
+#==================
+substitutions:
+  device_name: autoclave-acqua-sensor
+  friendly_name: Sensore autoclave acqua
+
+esphome:
+  name: ${device_name}
+  platform: ESP8266
+  board: d1_mini
+  includes:
+  - powerMon.h
+  project:
+    name: "Bigmoby.autoclave-acqua-sensor"
+    version: "2.0.0"
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+
+ota:
+  password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_user
+  password: !secret mqtt_password
+  client_id: ${device_name}
+
+sensor:
+  #=== Uptime
+  - platform: uptime
+    name: ${friendly_name} Uptime Sensor
+    id: uptime_sensor
+    state_topic: ${device_name}/uptime
+    update_interval: 60s   
+
+  #=== WiFi Signal
+  - platform: wifi_signal
+    name: ${friendly_name} WiFi Signal
+    update_interval: 60s
+
+  #=== Assorbimento contattore
+  - platform: custom
+    lambda: |-
+      auto powerMonSensor = new CustomPowerMon();
+      App.register_component(powerMonSensor);
+      return {powerMonSensor};
+    sensors:
+     name: "Power Meter"
+     unit_of_measurement: W
+     accuracy_decimals: 0
+     filters:
+       - sliding_window_moving_average:
+           window_size: 150
+           send_every: 150
+           send_first_at: 150
+
+#=== Switches
+switch:
+  #=== Stop Relay
+  - platform: gpio
+    pin: 
+      number: 5
+      inverted: True
+    name: Stop Relay
+    icon: "mdi:stop-circle-outline"
+    id: relayStopContattore
+    restore_mode : ALWAYS_OFF
+    interlock: &interlock_group [relayStopContattore, relayStartContattore]
+    on_turn_on:
+    - delay: 500ms
+    - switch.turn_off: relayStopContattore
+
+  #=== Start Relay
+  - platform: gpio
+    pin: 
+      number: 4
+      inverted: True
+    name: Start Relay
+    icon: "mdi:play-circle-outline"
+    id: relayStartContattore
+    restore_mode : ALWAYS_ON
+    interlock: *interlock_group
+    on_turn_on:
+    - delay: 500ms
+    - switch.turn_off: relayStartContattore
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 14
+      mode: INPUT_PULLUP
+    name: "Start button"
+    device_class: window
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - switch.toggle: relayStartContattore
+
+  - platform: gpio
+    pin:
+      number: 12
+      mode: INPUT_PULLUP
+    name: "Stop button"
+    device_class: window
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - switch.toggle: relayStopContattore
+
+button:
+  - platform: restart
+    name: Restart ${device_name}
