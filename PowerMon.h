@@ -41,6 +41,7 @@ class CustomPowerMon : public PollingComponent, public sensor::Sensor
         delay(10);
         offsetI = ADC_COUNTS >> 1;
     }
+    
     void update() override
     {
         double Irms = calcIrms(1480, powerPin); // Calculate current
