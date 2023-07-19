@@ -9,24 +9,17 @@ esphome:
   name: ${device_name}
   platform: ESP8266
   board: d1_mini
-  includes:
-  - powerMon.h
   project:
     name: "Bigmoby.autoclave-acqua-sensor"
-    version: "2.0.0"
+    version: "2.1.0"
 
 # Enable logging
 logger:
-
-web_server:
-  port: 80
-  auth:
-    username: admin
-    password: !secret web_server_password
     
 # Enable Home Assistant API
 api:
-  password: !secret api_password
+  encryption: 
+    key: !secret api_password
 
 ota:
   password: !secret ota_password
@@ -53,22 +46,6 @@ sensor:
   - platform: wifi_signal
     name: ${friendly_name} WiFi Signal
     update_interval: 60s
-
-  #=== Assorbimento contattore
-  - platform: custom
-    lambda: |-
-      auto powerMonSensor = new CustomPowerMon();
-      App.register_component(powerMonSensor);
-      return {powerMonSensor};
-    sensors:
-     name: "Power Meter"
-     unit_of_measurement: W
-     accuracy_decimals: 0
-     filters:
-       - sliding_window_moving_average:
-           window_size: 150
-           send_every: 150
-           send_first_at: 150
 
 #=== Switches
 switch:
@@ -100,13 +77,27 @@ switch:
     - delay: 500ms
     - switch.turn_off: relayStartContattore
 
+  #=== Start Irrigazione
+  - platform: gpio
+    pin: 
+      number: 15
+      inverted: True
+    name: Irrigazione Relay
+    icon: "mdi:play-circle-outline"
+    id: relayIrrigazione
+    restore_mode : ALWAYS_OFF
+    # Set automatic timeout 10 minutes
+    on_turn_on:
+      then:
+        - delay: 10min
+        - switch.turn_off: relayIrrigazione
+
 binary_sensor:
   - platform: gpio
     pin:
       number: 14
       mode: INPUT_PULLUP
     name: "Start button"
-    device_class: window
     filters:
       - delayed_on: 10ms
     on_press:
@@ -118,12 +109,19 @@ binary_sensor:
       number: 12
       mode: INPUT_PULLUP
     name: "Stop button"
-    device_class: window
     filters:
       - delayed_on: 10ms
     on_press:
       then:
         - switch.toggle: relayStopContattore
+
+  - platform: gpio
+    pin:
+      number: 13
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Stato attivazione autoclave"
+    device_class: power        
 
 button:
   - platform: restart
